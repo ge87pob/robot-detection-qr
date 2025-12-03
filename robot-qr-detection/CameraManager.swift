@@ -31,6 +31,10 @@ final class CameraManager: NSObject {
     private let persistenceFrames = 5
     private var framesWithoutDetection = 0
     
+    // smoothing: lower alpha = smoother but laggier, higher = more responsive
+    private let smoothingAlpha: CGFloat = 0.7
+    private var smoothedBoundingBox: CGRect?
+    
     // AVFoundation stuff needs to be nonisolated
     nonisolated let session = AVCaptureSession()
     private nonisolated let videoOutput = AVCaptureVideoDataOutput()
@@ -153,10 +157,13 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     private nonisolated func updateDetection(_ qr: DetectedQR?) {
         Task { @MainActor in
             if let qr = qr {
-                // detected - reset counter and update position
+                // detected - reset counter
                 self.framesWithoutDetection = 0
-                self.detectedQR = qr
                 self.robotDetected = true
+                
+                // apply exponential smoothing to bounding box
+                let smoothedBox = self.smoothBox(qr.boundingBox)
+                self.detectedQR = DetectedQR(payload: qr.payload, boundingBox: smoothedBox)
             } else {
                 // not detected this frame
                 self.framesWithoutDetection += 1
@@ -165,9 +172,30 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
                 if self.framesWithoutDetection >= self.persistenceFrames {
                     self.detectedQR = nil
                     self.robotDetected = false
+                    self.smoothedBoundingBox = nil  // reset smoothing
                 }
                 // otherwise keep the old bounding box in place
             }
         }
+    }
+    
+    // blend new box with previous smoothed box
+    private func smoothBox(_ newBox: CGRect) -> CGRect {
+        guard let oldBox = smoothedBoundingBox else {
+            // first detection, no smoothing yet
+            smoothedBoundingBox = newBox
+            return newBox
+        }
+        
+        let alpha = smoothingAlpha
+        let smoothed = CGRect(
+            x: alpha * newBox.origin.x + (1 - alpha) * oldBox.origin.x,
+            y: alpha * newBox.origin.y + (1 - alpha) * oldBox.origin.y,
+            width: alpha * newBox.width + (1 - alpha) * oldBox.width,
+            height: alpha * newBox.height + (1 - alpha) * oldBox.height
+        )
+        
+        smoothedBoundingBox = smoothed
+        return smoothed
     }
 }
