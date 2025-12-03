@@ -37,6 +37,8 @@ struct ContentView: View {
 // MARK: - Scanner View (main camera + overlay)
 struct ScannerView: View {
     var cameraManager: CameraManager
+    @State private var showSmoothingControl = false
+    @State private var smoothingText = "0.6"
     
     var body: some View {
         GeometryReader { geo in
@@ -58,11 +60,82 @@ struct ScannerView: View {
                         .padding(.top, 60)
                     Spacer()
                 }
+                
+                // smoothing control on right side
+                HStack {
+                    Spacer()
+                    SmoothingControl(
+                        isExpanded: $showSmoothingControl,
+                        smoothingText: $smoothingText,
+                        onApply: {
+                            if let value = Double(smoothingText), value >= 0, value <= 1 {
+                                cameraManager.smoothingAlpha = CGFloat(value)
+                            }
+                        }
+                    )
+                    .padding(.trailing, 12)
+                }
             }
         }
         .onAppear {
             cameraManager.setupSession()
             cameraManager.startSession()
+            smoothingText = String(format: "%.1f", cameraManager.smoothingAlpha)
+        }
+    }
+}
+
+// MARK: - Smoothing Control
+struct SmoothingControl: View {
+    @Binding var isExpanded: Bool
+    @Binding var smoothingText: String
+    let onApply: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            if isExpanded {
+                VStack(spacing: 6) {
+                    Text("Smooth")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.8))
+                    
+                    TextField("0-1", text: $smoothingText)
+                        .font(.system(size: 14, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .frame(width: 50)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.2))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .keyboardType(.decimalPad)
+                        .onSubmit { onApply() }
+                    
+                    Button(action: {
+                        onApply()
+                        isExpanded = false
+                    }) {
+                        Text("OK")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 50)
+                            .padding(.vertical, 4)
+                            .background(Color.blue)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+                .padding(10)
+                .background(Color.black.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+            
+            Button(action: { isExpanded.toggle() }) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Color.black.opacity(0.5))
+                    .clipShape(Circle())
+            }
         }
     }
 }

@@ -32,7 +32,7 @@ final class CameraManager: NSObject {
     private var framesWithoutDetection = 0
     
     // smoothing: lower alpha = smoother but laggier, higher = more responsive
-    private let smoothingAlpha: CGFloat = 0.7
+    var smoothingAlpha: CGFloat = 0.6
     private var smoothedBoundingBox: CGRect?
     
     // AVFoundation stuff needs to be nonisolated
